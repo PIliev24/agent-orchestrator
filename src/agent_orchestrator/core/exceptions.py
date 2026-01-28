@@ -1,101 +1,105 @@
 """Custom exception classes for the agent orchestrator."""
 
-from typing import Any, Optional
+from typing import Optional
+from uuid import UUID
 
 
 class AgentOrchestratorError(Exception):
-    """Base exception for all orchestrator errors."""
+    """Base exception for all agent orchestrator errors."""
 
-    def __init__(self, message: str, details: Optional[dict[str, Any]] = None):
+    def __init__(self, message: str, details: Optional[dict] = None):
         super().__init__(message)
         self.message = message
         self.details = details or {}
 
 
+class NotFoundError(AgentOrchestratorError):
+    """Base exception for resource not found errors."""
+
+    resource_type: str = "Resource"
+
+    def __init__(self, resource_id: UUID | str, message: Optional[str] = None):
+        self.resource_id = resource_id
+        msg = message or f"{self.resource_type} with id '{resource_id}' not found"
+        super().__init__(msg, {"resource_id": str(resource_id)})
+
+
+class AgentNotFoundError(NotFoundError):
+    """Raised when an agent is not found."""
+
+    resource_type = "Agent"
+
+
+class ToolNotFoundError(NotFoundError):
+    """Raised when a tool is not found."""
+
+    resource_type = "Tool"
+
+
+class WorkflowNotFoundError(NotFoundError):
+    """Raised when a workflow is not found."""
+
+    resource_type = "Workflow"
+
+
+class ExecutionNotFoundError(NotFoundError):
+    """Raised when an execution is not found."""
+
+    resource_type = "Execution"
+
+
+class ValidationError(AgentOrchestratorError):
+    """Raised when validation fails."""
+
+    def __init__(self, message: str, field: Optional[str] = None, errors: Optional[list] = None):
+        details = {}
+        if field:
+            details["field"] = field
+        if errors:
+            details["errors"] = errors
+        super().__init__(message, details)
+
+
 class ProviderError(AgentOrchestratorError):
-    """Error from AI provider (OpenAI, Anthropic, Google)."""
+    """Raised when an AI provider operation fails."""
+
+    def __init__(self, provider: str, message: str, original_error: Optional[Exception] = None):
+        self.provider = provider
+        self.original_error = original_error
+        details = {"provider": provider}
+        if original_error:
+            details["original_error"] = str(original_error)
+        super().__init__(message, details)
+
+
+class WorkflowCompilationError(AgentOrchestratorError):
+    """Raised when workflow compilation fails."""
+
+    def __init__(self, workflow_id: UUID | str, message: str, node_id: Optional[str] = None):
+        self.workflow_id = workflow_id
+        self.node_id = node_id
+        details = {"workflow_id": str(workflow_id)}
+        if node_id:
+            details["node_id"] = node_id
+        super().__init__(message, details)
+
+
+class ExecutionError(AgentOrchestratorError):
+    """Raised when workflow execution fails."""
 
     def __init__(
         self,
-        provider: str,
+        execution_id: UUID | str,
         message: str,
-        status_code: Optional[int] = None,
+        node_id: Optional[str] = None,
+        original_error: Optional[Exception] = None,
     ):
-        super().__init__(f"Provider '{provider}' error: {message}")
-        self.provider = provider
-        self.status_code = status_code
-
-
-class ProviderNotConfiguredError(AgentOrchestratorError):
-    """Provider API key not configured."""
-
-    def __init__(self, provider: str):
-        super().__init__(f"Provider '{provider}' API key not configured")
-        self.provider = provider
-
-
-class AgentConfigError(AgentOrchestratorError):
-    """Invalid agent configuration."""
-
-    pass
-
-
-class WorkflowConfigError(AgentOrchestratorError):
-    """Invalid workflow configuration."""
-
-    pass
-
-
-class ToolExecutionError(AgentOrchestratorError):
-    """Error during tool execution."""
-
-    def __init__(self, tool_name: str, message: str):
-        super().__init__(f"Tool '{tool_name}' execution failed: {message}")
-        self.tool_name = tool_name
-
-
-class ToolNotFoundError(AgentOrchestratorError):
-    """Tool not found in registry."""
-
-    def __init__(self, tool_name: str):
-        super().__init__(f"Tool '{tool_name}' not found")
-        self.tool_name = tool_name
-
-
-class FileProcessingError(AgentOrchestratorError):
-    """Error during file processing."""
-
-    def __init__(self, filename: str, message: str):
-        super().__init__(f"Failed to process file '{filename}': {message}")
-        self.filename = filename
-
-
-class UnsupportedFileTypeError(AgentOrchestratorError):
-    """Unsupported file type."""
-
-    def __init__(self, filename: str, file_type: str):
-        super().__init__(f"Unsupported file type '{file_type}' for file '{filename}'")
-        self.filename = filename
-        self.file_type = file_type
-
-
-class SessionNotFoundError(AgentOrchestratorError):
-    """Session not found or expired."""
-
-    def __init__(self, session_id: str):
-        super().__init__(f"Session '{session_id}' not found or expired")
-        self.session_id = session_id
-
-
-class AuthenticationError(AgentOrchestratorError):
-    """Authentication failure."""
-
-    pass
-
-
-class SchemaValidationError(AgentOrchestratorError):
-    """Output schema validation failure."""
-
-    def __init__(self, message: str, schema: Optional[dict[str, Any]] = None):
-        super().__init__(f"Schema validation failed: {message}")
-        self.schema = schema
+        self.execution_id = execution_id
+        self.node_id = node_id
+        self.original_error = original_error
+        details = {"execution_id": str(execution_id)}
+        if node_id:
+            details["node_id"] = node_id
+        if original_error:
+            details["original_error"] = str(original_error)
+        super().__init__(message, details)

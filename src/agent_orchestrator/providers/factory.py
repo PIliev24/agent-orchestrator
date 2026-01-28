@@ -1,49 +1,104 @@
-"""Provider factory for creating AI provider instances."""
+"""Factory for creating AI providers."""
 
 from typing import Optional
 
-from agent_orchestrator.config import settings
-from agent_orchestrator.core.exceptions import ProviderNotConfiguredError
-from agent_orchestrator.core.interfaces.provider import BaseProvider
-from agent_orchestrator.core.schemas.agent import ModelProvider
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
+
+from agent_orchestrator.core.exceptions import ProviderError
+from agent_orchestrator.providers.base import BaseProvider, ProviderConfig
+from agent_orchestrator.providers.anthropic import AnthropicProvider
+from agent_orchestrator.providers.google import GoogleProvider
+from agent_orchestrator.providers.openai import OpenAIProvider
 
 
 class ProviderFactory:
-    """Factory for creating AI provider instances."""
+    """Factory for creating and managing AI providers."""
 
-    _instances: dict[ModelProvider, BaseProvider] = {}
-
-    @classmethod
-    def get_provider(cls, provider: ModelProvider) -> BaseProvider:
-        """Get or create a provider instance."""
-        if provider not in cls._instances:
-            cls._instances[provider] = cls._create_provider(provider)
-        return cls._instances[provider]
+    _providers: dict[str, type[BaseProvider]] = {
+        "openai": OpenAIProvider,
+        "anthropic": AnthropicProvider,
+        "google": GoogleProvider,
+    }
 
     @classmethod
-    def _create_provider(cls, provider: ModelProvider) -> BaseProvider:
-        """Create a new provider instance."""
-        from agent_orchestrator.providers.anthropic_provider import AnthropicProvider
-        from agent_orchestrator.providers.google_provider import GoogleProvider
-        from agent_orchestrator.providers.openai_provider import OpenAIProvider
+    def register_provider(cls, name: str, provider_class: type[BaseProvider]) -> None:
+        """Register a new provider.
 
-        match provider:
-            case ModelProvider.OPENAI:
-                if not settings.openai_api_key:
-                    raise ProviderNotConfiguredError("openai")
-                return OpenAIProvider(api_key=settings.openai_api_key)
-            case ModelProvider.ANTHROPIC:
-                if not settings.anthropic_api_key:
-                    raise ProviderNotConfiguredError("anthropic")
-                return AnthropicProvider(api_key=settings.anthropic_api_key)
-            case ModelProvider.GOOGLE:
-                if not settings.google_api_key:
-                    raise ProviderNotConfiguredError("google")
-                return GoogleProvider(api_key=settings.google_api_key)
-            case _:
-                raise ValueError(f"Unknown provider: {provider}")
+        Args:
+            name: Provider name.
+            provider_class: Provider class to register.
+        """
+        cls._providers[name] = provider_class
 
     @classmethod
-    def clear_cache(cls) -> None:
-        """Clear the provider cache."""
-        cls._instances.clear()
+    def get_provider(cls, provider_name: str) -> BaseProvider:
+        """Get a provider instance by name.
+
+        Args:
+            provider_name: Name of the provider.
+
+        Returns:
+            Provider instance.
+
+        Raises:
+            ProviderError: If provider is not found.
+        """
+        provider_class = cls._providers.get(provider_name)
+        if not provider_class:
+            available = ", ".join(cls._providers.keys())
+            raise ProviderError(
+                provider=provider_name,
+                message=f"Unknown provider '{provider_name}'. Available: {available}",
+            )
+        return provider_class()
+
+    @classmethod
+    def create_model(
+        cls,
+        config: ProviderConfig | dict,
+        tools: Optional[list[BaseTool]] = None,
+        output_schema: Optional[dict] = None,
+    ) -> BaseChatModel:
+        """Create a chat model from configuration.
+
+        Args:
+            config: Provider configuration (ProviderConfig or dict).
+            tools: Optional list of tools to bind.
+            output_schema: Optional JSON Schema for structured output.
+
+        Returns:
+            Configured chat model.
+
+        Raises:
+            ProviderError: If model creation fails.
+        """
+        if isinstance(config, dict):
+            config = ProviderConfig(**config)
+
+        try:
+            provider = cls.get_provider(config.provider)
+
+            if output_schema:
+                return provider.create_model_with_structured_output(config, output_schema)
+            elif tools:
+                return provider.create_model_with_tools(config, tools)
+            else:
+                return provider.create_model(config)
+        except Exception as e:
+            if isinstance(e, ProviderError):
+                raise
+            raise ProviderError(
+                provider=config.provider,
+                message=f"Failed to create model: {e}",
+                original_error=e,
+            )
+
+    @classmethod
+    def list_providers(cls) -> list[str]:
+        """List available provider names.
+
+        Returns:
+            List of provider names.
+        """
+        return list(cls._providers.keys())

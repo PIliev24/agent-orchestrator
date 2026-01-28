@@ -13,10 +13,23 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # API Authentication
     api_key: str = "default-api-key"
+
+    # Database
+    database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_orchestrator"
+    )
+    database_echo: bool = False
+
+    # Sync database URL for Alembic migrations
+    @property
+    def database_url_sync(self) -> str:
+        """Return sync database URL for Alembic."""
+        return self.database_url.replace("+asyncpg", "")
 
     # AI Provider Keys
     openai_api_key: Optional[str] = None
@@ -24,14 +37,21 @@ class Settings(BaseSettings):
     google_api_key: Optional[str] = None
     mistral_api_key: Optional[str] = None
 
-    # Session Configuration
-    session_ttl: int = 3600  # 1 hour in seconds
-    session_cleanup_interval: int = 300  # 5 minutes
-
     # Server Configuration
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
+
+    # LangGraph Checkpointing
+    checkpoint_connection_string: Optional[str] = None
+
+    @property
+    def checkpoint_db_uri(self) -> str:
+        """Return checkpoint database URI (uses psycopg format)."""
+        if self.checkpoint_connection_string:
+            return self.checkpoint_connection_string
+        # Convert asyncpg URL to psycopg format for LangGraph checkpointer
+        return self.database_url.replace("postgresql+asyncpg://", "postgresql://")
 
 
 @lru_cache

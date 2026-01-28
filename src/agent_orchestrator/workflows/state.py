@@ -1,60 +1,78 @@
-"""Dynamic state class creation for workflows."""
+"""Workflow state management."""
 
-import operator
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, TypedDict
 
-from typing_extensions import TypedDict
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 
-class BaseWorkflowState(TypedDict):
-    """Base workflow state with common fields."""
+class WorkflowState(TypedDict, total=False):
+    """Default workflow state schema.
 
-    input: str
+    This provides a base state structure that can be extended
+    via the workflow's state_schema configuration.
+    """
+
+    # Input data provided when starting the workflow
+    input: dict[str, Any]
+
+    # Message history (for agent nodes)
+    messages: Annotated[list[BaseMessage], add_messages]
+
+    # Intermediate results from nodes
+    intermediate: dict[str, Any]
+
+    # Final output (set by the last node)
     output: Any
-    messages: Annotated[list[dict[str, Any]], operator.add]
+
+    # Current node being executed (for tracking)
+    current_node: Optional[str]
+
+    # Error information if workflow fails
+    error: Optional[str]
+
+    # Metadata about the execution
     metadata: dict[str, Any]
 
 
-def create_state_class(schema: Optional[dict[str, Any]] = None) -> type:
-    """Create a state class from JSON schema.
+def create_state_class(state_schema: Optional[dict] = None) -> type[TypedDict]:
+    """Create a TypedDict class from a JSON Schema.
 
     Args:
-        schema: JSON Schema defining state structure. If None, returns base state.
+        state_schema: Optional JSON Schema defining additional state fields.
+            If None, returns the default WorkflowState.
 
     Returns:
-        A TypedDict class for the workflow state.
+        TypedDict class for the workflow state.
     """
-    if schema is None:
-        return BaseWorkflowState
+    if not state_schema:
+        return WorkflowState
 
-    properties = schema.get("properties", {})
+    # For now, we use the default WorkflowState
+    # A more sophisticated implementation could dynamically create
+    # TypedDict classes from JSON Schema
+    return WorkflowState
 
-    annotations: dict[str, Any] = {}
 
-    for prop_name, prop_def in properties.items():
-        prop_type = prop_def.get("type", "string")
+def merge_state(current: dict, updates: dict) -> dict:
+    """Merge state updates into current state.
 
-        if prop_type == "string":
-            annotations[prop_name] = str
-        elif prop_type == "number":
-            annotations[prop_name] = float
-        elif prop_type == "integer":
-            annotations[prop_name] = int
-        elif prop_type == "boolean":
-            annotations[prop_name] = bool
-        elif prop_type == "array":
-            annotations[prop_name] = Annotated[list[Any], operator.add]
-        elif prop_type == "object":
-            annotations[prop_name] = dict[str, Any]
+    Handles special merging for 'messages' (append) and 'intermediate' (deep merge).
+
+    Args:
+        current: Current state dictionary.
+        updates: Updates to apply.
+
+    Returns:
+        Merged state dictionary.
+    """
+    result = current.copy()
+
+    for key, value in updates.items():
+        if key == "intermediate" and key in result and isinstance(result[key], dict):
+            # Deep merge intermediate results
+            result[key] = {**result[key], **value}
         else:
-            annotations[prop_name] = Any
+            result[key] = value
 
-    annotations["messages"] = Annotated[list[dict[str, Any]], operator.add]
-    annotations["metadata"] = dict[str, Any]
-
-    class DynamicState(TypedDict):
-        pass
-
-    DynamicState.__annotations__ = annotations
-
-    return DynamicState
+    return result

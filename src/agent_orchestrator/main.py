@@ -1,63 +1,69 @@
-"""Main FastAPI application for the Agent Orchestrator."""
+"""FastAPI application entry point."""
 
-import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent_orchestrator.api.exception_handlers import register_exception_handlers
-from agent_orchestrator.api.middleware import APIKeyAuthMiddleware
-from agent_orchestrator.api.routes import agents, files, health, sessions, workflows
+from agent_orchestrator.api.routes import api_router
 from agent_orchestrator.config import settings
-from agent_orchestrator.sessions.manager import SessionManager
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from agent_orchestrator.tools.registry import register_builtin_tools
+from agent_orchestrator.workflows.checkpointer import close_checkpointer
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan context manager for startup and shutdown."""
-    logger.info("Starting Agent Orchestrator...")
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Application lifespan manager.
 
-    session_manager = SessionManager()
-    app.state.session_manager = session_manager
-
-    logger.info("Session manager initialized")
+    Handles startup and shutdown events.
+    """
+    # Startup
+    register_builtin_tools()
 
     yield
 
-    logger.info("Shutting down Agent Orchestrator...")
-    await app.state.session_manager.cleanup_all()
-    logger.info("All sessions cleaned up")
+    # Shutdown
+    await close_checkpointer()
 
 
-app = FastAPI(
-    title="Agent Orchestrator",
-    description="AI Agent orchestration with LangGraph",
-    version="1.0.0",
-    lifespan=lifespan,
-)
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application.
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    Returns:
+        Configured FastAPI instance.
+    """
+    app = FastAPI(
+        title="Agent Orchestrator API",
+        description="LangGraph-based AI Agent Orchestrator with multi-provider support",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+    )
 
-app.add_middleware(APIKeyAuthMiddleware)
+    # Configure CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Configure appropriately for production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-app.include_router(health.router, tags=["Health"])
-app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agents"])
-app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["Workflows"])
-app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
-app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
+    # Register exception handlers
+    register_exception_handlers(app)
 
-register_exception_handlers(app)
+    # Include API routes
+    app.include_router(api_router, prefix="/api/v1")
+
+    return app
+
+
+# Create application instance
+app = create_app()
 
 
 if __name__ == "__main__":
