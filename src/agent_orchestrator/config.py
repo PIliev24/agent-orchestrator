@@ -1,7 +1,6 @@
 """Configuration management using pydantic-settings."""
 
 from functools import lru_cache
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,9 +19,7 @@ class Settings(BaseSettings):
     api_key: str = "default-api-key"
 
     # Database
-    database_url: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_orchestrator"
-    )
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/agent_orchestrator"
     database_echo: bool = False
 
     # Sync database URL for Alembic migrations
@@ -32,10 +29,10 @@ class Settings(BaseSettings):
         return self.database_url.replace("+asyncpg", "")
 
     # AI Provider Keys
-    openai_api_key: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    google_api_key: Optional[str] = None
-    mistral_api_key: Optional[str] = None
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    google_api_key: str | None = None
+    mistral_api_key: str | None = None
 
     # Server Configuration
     host: str = "0.0.0.0"
@@ -43,7 +40,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # LangGraph Checkpointing
-    checkpoint_connection_string: Optional[str] = None
+    checkpoint_connection_string: str | None = None
 
     @property
     def checkpoint_db_uri(self) -> str:

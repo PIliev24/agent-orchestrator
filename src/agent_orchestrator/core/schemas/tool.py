@@ -1,6 +1,5 @@
 """Pydantic schemas for Tool API."""
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -18,7 +17,7 @@ class ToolCreate(BaseModel):
         description="Tool name (must be unique)",
         examples=["calculator", "web_search"],
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         description="Tool description",
         examples=["Performs mathematical calculations"],
@@ -43,12 +42,7 @@ class ToolCreate(BaseModel):
             }
         ],
     )
-    implementation_ref: str = Field(
-        ...,
-        description="Reference to tool implementation (e.g., 'builtin:calculator')",
-        examples=["builtin:calculator", "custom:my_tool"],
-    )
-    config: Optional[dict] = Field(
+    config: dict | None = Field(
         default=None,
         description="Additional tool configuration",
     )
@@ -57,15 +51,14 @@ class ToolCreate(BaseModel):
 class ToolUpdate(BaseModel):
     """Schema for updating a tool."""
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         default=None,
         min_length=1,
         max_length=128,
     )
-    description: Optional[str] = None
-    function_schema: Optional[dict] = None
-    implementation_ref: Optional[str] = None
-    config: Optional[dict] = None
+    description: str | None = None
+    function_schema: dict | None = None
+    config: dict | None = None
 
 
 class ToolResponse(BaseSchema, TimestampMixin):
@@ -73,10 +66,9 @@ class ToolResponse(BaseSchema, TimestampMixin):
 
     id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     function_schema: dict
-    implementation_ref: str
-    config: Optional[dict]
+    config: dict | None
 
 
 class ToolListResponse(PaginatedResponse[ToolResponse]):

@@ -1,7 +1,6 @@
 """Tool SQLAlchemy model."""
 
-import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import JSON
@@ -19,7 +18,7 @@ class Tool(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "tools"
 
     name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # JSON Schema for the tool's function signature
     function_schema: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -28,7 +27,7 @@ class Tool(Base, UUIDMixin, TimestampMixin):
     implementation_ref: Mapped[str] = mapped_column(String(256), nullable=False)
 
     # Additional configuration for the tool
-    config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
     agent_tools: Mapped[list["AgentTool"]] = relationship(

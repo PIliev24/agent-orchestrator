@@ -1,6 +1,5 @@
 """Execution API routes."""
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -76,8 +75,8 @@ async def list_executions(
     _: ApiKey,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    workflow_id: Optional[UUID] = Query(default=None),
-    status: Optional[ExecutionStatus] = Query(default=None),
+    workflow_id: UUID | None = Query(default=None),
+    status: ExecutionStatus | None = Query(default=None),
 ) -> ExecutionListResponse:
     """List executions with pagination.
 
@@ -163,3 +162,36 @@ async def cancel_execution(
     """
     service = ExecutionService(session)
     return await service.cancel(execution_id)
+
+
+@router.delete("/{execution_id}", status_code=204)
+async def delete_execution(
+    execution_id: UUID,
+    session: DbSession,
+    _: ApiKey,
+) -> None:
+    """Delete an execution."""
+    service = ExecutionService(session)
+    await service.delete(execution_id)
+
+
+@router.post("/{execution_id}/resume", response_model=ExecutionResponse, status_code=201)
+async def resume_execution(
+    execution_id: UUID,
+    session: DbSession,
+    _: ApiKey,
+) -> ExecutionResponse:
+    """Resume a cancelled or failed execution."""
+    service = ExecutionService(session)
+    return await service.resume(execution_id)
+
+
+@router.post("/{execution_id}/restart", response_model=ExecutionResponse, status_code=201)
+async def restart_execution(
+    execution_id: UUID,
+    session: DbSession,
+    _: ApiKey,
+) -> ExecutionResponse:
+    """Restart an execution from scratch."""
+    service = ExecutionService(session)
+    return await service.restart(execution_id)

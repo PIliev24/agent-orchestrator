@@ -3,9 +3,10 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,13 +50,13 @@ class Execution(Base, UUIDMixin):
     )
 
     # Input data provided to the workflow
-    input_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    input_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Output data from the workflow (populated on completion)
-    output_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    output_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Error message if execution failed
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -63,11 +64,11 @@ class Execution(Base, UUIDMixin):
         server_default=func.now(),
         nullable=False,
     )
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -81,7 +82,7 @@ class Execution(Base, UUIDMixin):
     )
 
     @property
-    def duration_seconds(self) -> Optional[float]:
+    def duration_seconds(self) -> float | None:
         """Calculate execution duration in seconds."""
         if self.started_at and self.completed_at:
             return (self.completed_at - self.started_at).total_seconds()
@@ -114,20 +115,20 @@ class ExecutionStep(Base, UUIDMixin):
     )
 
     # Input to the node
-    input_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    input_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Output from the node
-    output_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    output_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Error message if step failed
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Timestamps
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

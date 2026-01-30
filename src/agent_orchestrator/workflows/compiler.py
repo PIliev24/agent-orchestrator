@@ -1,24 +1,25 @@
 """Workflow compiler that converts database models to LangGraph StateGraphs."""
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 from uuid import UUID
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select
 
 from agent_orchestrator.core.exceptions import WorkflowCompilationError, WorkflowNotFoundError
-from agent_orchestrator.database.models.workflow import NodeType, Workflow, WorkflowNode
 from agent_orchestrator.database.models.agent import Agent, AgentTool
+from agent_orchestrator.database.models.workflow import NodeType, Workflow, WorkflowNode
 from agent_orchestrator.tools.registry import ToolRegistry
 from agent_orchestrator.workflows.checkpointer import get_checkpointer
 from agent_orchestrator.workflows.nodes.agent_node import create_agent_node_sync
 from agent_orchestrator.workflows.nodes.parallel_node import create_join_node, create_parallel_node
 from agent_orchestrator.workflows.nodes.router_node import create_conditional_edges
-from agent_orchestrator.workflows.state import WorkflowState, create_state_class
+from agent_orchestrator.workflows.state import create_state_class
 
 
 class WorkflowCompiler:
@@ -35,7 +36,7 @@ class WorkflowCompiler:
     async def compile(
         self,
         workflow_id: UUID,
-        checkpointer: Optional[AsyncPostgresSaver] = None,
+        checkpointer: AsyncPostgresSaver | None = None,
     ) -> CompiledStateGraph:
         """Compile a workflow into a LangGraph StateGraph.
 
@@ -151,15 +152,10 @@ class WorkflowCompiler:
                 return await self._create_agent_node(node)
 
             case NodeType.ROUTER:
-                # Router nodes return a string (target node), not a dict
-                # They're handled via conditional edges
                 return self._create_passthrough_node(node.node_id)
 
             case NodeType.PARALLEL:
-                return create_parallel_node(
-                    node.parallel_nodes or [],
-                    node.config.get("fan_out_key") if node.config else None,
-                )
+                return self._create_passthrough_node(node.node_id)
 
             case NodeType.JOIN:
                 config = node.config or {}
@@ -311,13 +307,18 @@ class WorkflowCompiler:
             edges_by_source[edge.source_node].append(edge)
 
         for source, edges in edges_by_source.items():
-            # Convert special node names
             source_node = START if source == "__start__" else source
 
             # Check if any edges have conditions
-            has_conditions = any(e.condition for e in edges)
+            has_conditions = any(e.condition and e.condition.lower() != "default" for e in edges)
 
-            if has_conditions or len(edges) > 1:
+            # Check if source is a PARALLEL or ROUTER node (needs conditional edges)
+            is_special_node = False
+            if source_node != START and source in nodes_map:
+                node = nodes_map[source]
+                is_special_node = node.node_type in (NodeType.PARALLEL, NodeType.ROUTER)
+
+            if has_conditions or len(edges) > 1 or is_special_node:
                 # Use conditional edges
                 await self._add_conditional_edges(builder, source_node, edges, nodes_map)
             else:
@@ -325,6 +326,25 @@ class WorkflowCompiler:
                 edge = edges[0]
                 target_node = END if edge.target_node == "__end__" else edge.target_node
                 builder.add_edge(source_node, target_node)
+
+        # Auto-inject START/END edges if missing
+        all_sources = {e.source_node for e in workflow.edges}
+        all_targets = {e.target_node for e in workflow.edges}
+        node_ids = set(nodes_map.keys())
+
+        if "__start__" not in all_sources:
+            entry_nodes = node_ids - {
+                e.target_node for e in workflow.edges if e.target_node in node_ids
+            }
+            for entry_node in entry_nodes:
+                builder.add_edge(START, entry_node)
+
+        if "__end__" not in all_targets:
+            exit_nodes = node_ids - {
+                e.source_node for e in workflow.edges if e.source_node in node_ids
+            }
+            for exit_node in exit_nodes:
+                builder.add_edge(exit_node, END)
 
     async def _add_conditional_edges(
         self,
@@ -341,7 +361,7 @@ class WorkflowCompiler:
             edges: List of edges from this source.
             nodes_map: Map of node_id to WorkflowNode.
         """
-        # Check if source is a router node
+        # Check if source is a router or parallel node
         if source_node != START and source_node in nodes_map:
             node = nodes_map[source_node]
             if node.node_type == NodeType.ROUTER and node.router_config:
@@ -350,6 +370,17 @@ class WorkflowCompiler:
                 builder.add_conditional_edges(source_node, router_func, path_map)
                 return
 
+            if node.node_type == NodeType.PARALLEL:
+                # Use Send-based fan-out for parallel nodes
+                target_nodes = node.parallel_nodes or [e.target_node for e in edges]
+                if target_nodes:
+                    parallel_func = create_parallel_node(
+                        target_nodes,
+                        node.config.get("fan_out_key") if node.config else None,
+                    )
+                    builder.add_conditional_edges(source_node, parallel_func)
+                    return
+
         # Build conditional routing from edge conditions
         conditions = []
         default_target = END
@@ -357,13 +388,15 @@ class WorkflowCompiler:
         for edge in edges:
             target = END if edge.target_node == "__end__" else edge.target_node
 
-            if edge.condition:
-                conditions.append({
-                    "condition": edge.condition,
-                    "target": target,
-                })
+            if edge.condition and edge.condition.lower() != "default":
+                conditions.append(
+                    {
+                        "condition": edge.condition,
+                        "target": target,
+                    }
+                )
             else:
-                # Edge without condition is the default
+                # Edge without condition or with "default" is the default path
                 default_target = target
 
         if conditions:

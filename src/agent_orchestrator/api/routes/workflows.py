@@ -1,6 +1,5 @@
 """Workflow API routes."""
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -42,7 +41,7 @@ async def list_workflows(
     _: ApiKey,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    search: Optional[str] = Query(default=None),
+    search: str | None = Query(default=None),
     templates_only: bool = Query(default=False),
 ) -> WorkflowListResponse:
     """List workflows with pagination.

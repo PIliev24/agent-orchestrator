@@ -97,7 +97,6 @@ Setup
           "required": ["expression"]
         }
       },
-      "implementation_ref": "builtin:calculator"
     }'
 
   3. Create an Agent

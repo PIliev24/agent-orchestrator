@@ -8,11 +8,14 @@ from agent_orchestrator.core.exceptions import (
     AgentOrchestratorError,
     ExecutionError,
     ExecutionNotFoundError,
+    ExecutionStepNotFoundError,
     NotFoundError,
     ProviderError,
     ToolNotFoundError,
     ValidationError,
     WorkflowCompilationError,
+    WorkflowEdgeNotFoundError,
+    WorkflowNodeNotFoundError,
     WorkflowNotFoundError,
 )
 
@@ -79,9 +82,7 @@ async def execution_error_handler(request: Request, exc: ExecutionError) -> JSON
     )
 
 
-async def generic_error_handler(
-    request: Request, exc: AgentOrchestratorError
-) -> JSONResponse:
+async def generic_error_handler(request: Request, exc: AgentOrchestratorError) -> JSONResponse:
     """Handle generic orchestrator errors."""
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -103,6 +104,9 @@ def register_exception_handlers(app):
     app.add_exception_handler(ToolNotFoundError, not_found_handler)
     app.add_exception_handler(WorkflowNotFoundError, not_found_handler)
     app.add_exception_handler(ExecutionNotFoundError, not_found_handler)
+    app.add_exception_handler(WorkflowNodeNotFoundError, not_found_handler)
+    app.add_exception_handler(WorkflowEdgeNotFoundError, not_found_handler)
+    app.add_exception_handler(ExecutionStepNotFoundError, not_found_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)
     app.add_exception_handler(ProviderError, provider_error_handler)
     app.add_exception_handler(WorkflowCompilationError, workflow_compilation_error_handler)

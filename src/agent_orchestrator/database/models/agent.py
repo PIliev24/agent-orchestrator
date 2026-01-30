@@ -1,7 +1,7 @@
 """Agent SQLAlchemy model."""
 
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID
@@ -19,7 +19,7 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "agents"
 
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # System prompt / instructions for the agent
     instructions: Mapped[str] = mapped_column(Text, nullable=False)
@@ -29,7 +29,7 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     llm_config: Mapped[dict] = mapped_column(JSON, nullable=False)
 
     # Optional output schema for structured output
-    output_schema: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    output_schema: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
     agent_tools: Mapped[list["AgentTool"]] = relationship(

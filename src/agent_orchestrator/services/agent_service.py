@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -11,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from agent_orchestrator.core.exceptions import AgentNotFoundError, ToolNotFoundError
 from agent_orchestrator.core.schemas.agent import AgentCreate, AgentResponse, AgentUpdate
+from agent_orchestrator.core.schemas.tool import ToolResponse
 from agent_orchestrator.database.models.agent import Agent, AgentTool
 from agent_orchestrator.database.models.tool import Tool
 
@@ -85,7 +85,7 @@ class AgentService:
         self,
         page: int = 1,
         page_size: int = 20,
-        search: Optional[str] = None,
+        search: str | None = None,
     ) -> tuple[list[AgentResponse], int]:
         """List agents with pagination.
 
@@ -162,8 +162,8 @@ class AgentService:
 
         await self._session.flush()
 
-        # Reload to get updated relationships
-        await self._session.refresh(agent, ["agent_tools"])
+        # Reload to get updated relationships and refreshed scalar attributes
+        await self._session.refresh(agent)
 
         return self._to_response(agent)
 
@@ -179,6 +179,60 @@ class AgentService:
         agent = await self._get_agent(agent_id)
         await self._session.delete(agent)
 
+    async def list_tools(self, agent_id: UUID) -> list[ToolResponse]:
+        """List tools bound to an agent."""
+        agent = await self._get_agent(agent_id)
+        tool_ids = [at.tool_id for at in agent.agent_tools]
+        if not tool_ids:
+            return []
+
+        query = select(Tool).where(Tool.id.in_(tool_ids))
+        result = await self._session.execute(query)
+        tools = result.scalars().all()
+
+        return [
+            ToolResponse(
+                id=t.id,
+                name=t.name,
+                description=t.description,
+                function_schema=t.function_schema,
+                config=t.config,
+                created_at=t.created_at,
+                updated_at=t.updated_at,
+            )
+            for t in tools
+        ]
+
+    async def bind_tool(self, agent_id: UUID, tool_id: UUID) -> None:
+        """Bind a tool to an agent."""
+        await self._get_agent(agent_id)
+        await self._validate_tool_ids([tool_id])
+
+        # Check if already bound
+        query = select(AgentTool).where(
+            AgentTool.agent_id == agent_id,
+            AgentTool.tool_id == tool_id,
+        )
+        result = await self._session.execute(query)
+        if result.scalar_one_or_none():
+            return  # Already bound
+
+        agent_tool = AgentTool(agent_id=agent_id, tool_id=tool_id)
+        self._session.add(agent_tool)
+        await self._session.flush()
+
+    async def unbind_tool(self, agent_id: UUID, tool_id: UUID) -> None:
+        """Unbind a tool from an agent."""
+        query = select(AgentTool).where(
+            AgentTool.agent_id == agent_id,
+            AgentTool.tool_id == tool_id,
+        )
+        result = await self._session.execute(query)
+        agent_tool = result.scalar_one_or_none()
+        if not agent_tool:
+            raise ToolNotFoundError(tool_id, f"Tool {tool_id} is not bound to agent {agent_id}")
+        await self._session.delete(agent_tool)
+
     async def _get_agent(self, agent_id: UUID) -> Agent:
         """Get an agent by ID or raise error.
 
@@ -191,11 +245,7 @@ class AgentService:
         Raises:
             AgentNotFoundError: If not found.
         """
-        query = (
-            select(Agent)
-            .options(selectinload(Agent.agent_tools))
-            .where(Agent.id == agent_id)
-        )
+        query = select(Agent).options(selectinload(Agent.agent_tools)).where(Agent.id == agent_id)
         result = await self._session.execute(query)
         agent = result.scalar_one_or_none()
 

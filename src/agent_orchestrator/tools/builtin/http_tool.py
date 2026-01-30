@@ -1,6 +1,6 @@
 """HTTP tool for making web requests."""
 
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -61,8 +61,8 @@ class HttpTool(BaseTool):
         self,
         url: str,
         method: str = "GET",
-        headers: Optional[dict[str, str]] = None,
-        body: Optional[str] = None,
+        headers: dict[str, str] | None = None,
+        body: str | None = None,
         **kwargs: Any,
     ) -> ToolResult:
         """Make an HTTP request.

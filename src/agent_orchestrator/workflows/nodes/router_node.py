@@ -1,6 +1,7 @@
 """Router node implementation for conditional branching."""
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 
 def create_router_node(

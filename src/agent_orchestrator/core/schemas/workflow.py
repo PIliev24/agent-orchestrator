@@ -1,6 +1,5 @@
 """Pydantic schemas for Workflow API."""
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -23,11 +22,11 @@ class WorkflowNodeCreate(BaseModel):
         ...,
         description="Type of node",
     )
-    agent_id: Optional[UUID] = Field(
+    agent_id: UUID | None = Field(
         default=None,
         description="Agent ID for AGENT nodes",
     )
-    router_config: Optional[dict] = Field(
+    router_config: dict | None = Field(
         default=None,
         description="Routing configuration for ROUTER nodes",
         examples=[
@@ -40,15 +39,15 @@ class WorkflowNodeCreate(BaseModel):
             }
         ],
     )
-    parallel_nodes: Optional[list[str]] = Field(
+    parallel_nodes: list[str] | None = Field(
         default=None,
         description="List of node IDs for PARALLEL nodes",
     )
-    subgraph_workflow_id: Optional[UUID] = Field(
+    subgraph_workflow_id: UUID | None = Field(
         default=None,
         description="Workflow ID for SUBGRAPH nodes",
     )
-    config: Optional[dict] = Field(
+    config: dict | None = Field(
         default=None,
         description="Additional node configuration",
     )
@@ -60,11 +59,11 @@ class WorkflowNodeResponse(BaseSchema):
     id: UUID
     node_id: str
     node_type: NodeType
-    agent_id: Optional[UUID]
-    router_config: Optional[dict]
-    parallel_nodes: Optional[list[str]]
-    subgraph_workflow_id: Optional[UUID]
-    config: Optional[dict]
+    agent_id: UUID | None
+    router_config: dict | None
+    parallel_nodes: list[str] | None
+    subgraph_workflow_id: UUID | None
+    config: dict | None
 
 
 class WorkflowEdgeCreate(BaseModel):
@@ -80,7 +79,7 @@ class WorkflowEdgeCreate(BaseModel):
         description="Target node ID (use '__end__' for END)",
         examples=["agent_1", "__end__"],
     )
-    condition: Optional[str] = Field(
+    condition: str | None = Field(
         default=None,
         description="Python expression for conditional edge (evaluated against state)",
         examples=["state.get('approved', False) == True"],
@@ -93,7 +92,7 @@ class WorkflowEdgeResponse(BaseSchema):
     id: UUID
     source_node: str
     target_node: str
-    condition: Optional[str]
+    condition: str | None
 
 
 class WorkflowCreate(BaseModel):
@@ -106,15 +105,15 @@ class WorkflowCreate(BaseModel):
         description="Workflow name",
         examples=["Question Generation Pipeline"],
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         description="Workflow description",
     )
-    state_schema: Optional[dict] = Field(
+    state_schema: dict | None = Field(
         default=None,
         description="JSON Schema for workflow state",
     )
-    metadata: Optional[dict] = Field(
+    metadata: dict | None = Field(
         default=None,
         description="Additional workflow metadata",
     )
@@ -137,17 +136,17 @@ class WorkflowCreate(BaseModel):
 class WorkflowUpdate(BaseModel):
     """Schema for updating a workflow."""
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         default=None,
         min_length=1,
         max_length=128,
     )
-    description: Optional[str] = None
-    state_schema: Optional[dict] = None
-    metadata: Optional[dict] = None
-    is_template: Optional[bool] = None
-    nodes: Optional[list[WorkflowNodeCreate]] = None
-    edges: Optional[list[WorkflowEdgeCreate]] = None
+    description: str | None = None
+    state_schema: dict | None = None
+    metadata: dict | None = None
+    is_template: bool | None = None
+    nodes: list[WorkflowNodeCreate] | None = None
+    edges: list[WorkflowEdgeCreate] | None = None
 
 
 class WorkflowResponse(BaseSchema, TimestampMixin):
@@ -155,9 +154,9 @@ class WorkflowResponse(BaseSchema, TimestampMixin):
 
     id: UUID
     name: str
-    description: Optional[str]
-    state_schema: Optional[dict]
-    metadata: Optional[dict]
+    description: str | None
+    state_schema: dict | None
+    metadata: dict | None
     is_template: bool
     nodes: list[WorkflowNodeResponse]
     edges: list[WorkflowEdgeResponse]
@@ -169,12 +168,48 @@ class WorkflowListResponse(PaginatedResponse[WorkflowResponse]):
     pass
 
 
+class WorkflowNodeUpdate(BaseModel):
+    """Schema for updating a workflow node."""
+
+    node_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+    )
+    node_type: NodeType | None = None
+    agent_id: UUID | None = None
+    router_config: dict | None = None
+    parallel_nodes: list[str] | None = None
+    subgraph_workflow_id: UUID | None = None
+    config: dict | None = None
+
+
+class WorkflowEdgeUpdate(BaseModel):
+    """Schema for updating a workflow edge."""
+
+    source_node: str | None = None
+    target_node: str | None = None
+    condition: str | None = None
+
+
+class WorkflowNodeListResponse(PaginatedResponse[WorkflowNodeResponse]):
+    """Paginated list of workflow nodes."""
+
+    pass
+
+
+class WorkflowEdgeListResponse(PaginatedResponse[WorkflowEdgeResponse]):
+    """Paginated list of workflow edges."""
+
+    pass
+
+
 class WorkflowSummaryResponse(BaseSchema, TimestampMixin):
     """Summary response for workflow listing (without nodes/edges)."""
 
     id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     is_template: bool
     node_count: int = 0
     edge_count: int = 0

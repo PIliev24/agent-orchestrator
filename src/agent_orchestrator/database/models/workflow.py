@@ -32,13 +32,13 @@ class Workflow(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "workflows"
 
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # State schema as JSON Schema (defines workflow state structure)
-    state_schema: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    state_schema: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Workflow metadata (tags, version, etc.)
-    workflow_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    workflow_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Whether this is a template workflow
     is_template: Mapped[bool] = mapped_column(default=False, nullable=False)
@@ -81,7 +81,7 @@ class WorkflowNode(Base, UUIDMixin):
     node_type: Mapped[NodeType] = mapped_column(SQLEnum(NodeType), nullable=False)
 
     # For AGENT nodes: reference to the agent
-    agent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="SET NULL"),
         nullable=True,
@@ -89,20 +89,20 @@ class WorkflowNode(Base, UUIDMixin):
 
     # For ROUTER nodes: routing configuration
     # {"routes": [{"condition": "state.score > 0.8", "target": "high_quality"}], "default": "low_quality"}
-    router_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    router_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # For PARALLEL nodes: list of node IDs to execute in parallel
-    parallel_nodes: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    parallel_nodes: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # For SUBGRAPH nodes: reference to another workflow
-    subgraph_workflow_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    subgraph_workflow_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workflows.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     # Generic node configuration
-    config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
     workflow: Mapped["Workflow"] = relationship(
@@ -137,7 +137,7 @@ class WorkflowEdge(Base, UUIDMixin):
 
     # Condition for conditional edges (Python expression evaluated against state)
     # e.g., "state.get('score', 0) > 0.8"
-    condition: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    condition: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     workflow: Mapped["Workflow"] = relationship(back_populates="edges")

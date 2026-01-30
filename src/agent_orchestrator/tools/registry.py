@@ -1,8 +1,5 @@
 """Tool registry for managing available tools."""
 
-from typing import Optional
-from uuid import UUID
-
 from langchain_core.tools import BaseTool as LangChainBaseTool
 
 from agent_orchestrator.core.exceptions import ToolNotFoundError
@@ -40,7 +37,7 @@ class ToolRegistry:
         cls._custom_tools[reference] = tool_instance
 
     @classmethod
-    def get_tool(cls, reference: str, config: Optional[dict] = None) -> BaseTool:
+    def get_tool(cls, reference: str, config: dict | None = None) -> BaseTool:
         """Get a tool by its reference.
 
         Args:
@@ -78,9 +75,7 @@ class ToolRegistry:
             )
 
     @classmethod
-    def get_langchain_tool(
-        cls, reference: str, config: Optional[dict] = None
-    ) -> LangChainBaseTool:
+    def get_langchain_tool(cls, reference: str, config: dict | None = None) -> LangChainBaseTool:
         """Get a LangChain-compatible tool by reference.
 
         Args:
@@ -115,7 +110,11 @@ class ToolRegistry:
 def register_builtin_tools() -> None:
     """Register all built-in tools with the registry."""
     from agent_orchestrator.tools.builtin.calculator import CalculatorTool
+    from agent_orchestrator.tools.builtin.file_writer import FileWriterTool
     from agent_orchestrator.tools.builtin.http_tool import HttpTool
+    from agent_orchestrator.tools.builtin.mistral_ocr import MistralOCRTool
 
     ToolRegistry.register_builtin("calculator", CalculatorTool)
+    ToolRegistry.register_builtin("file_writer", FileWriterTool)
     ToolRegistry.register_builtin("http", HttpTool)
+    ToolRegistry.register_builtin("mistral_ocr", MistralOCRTool)

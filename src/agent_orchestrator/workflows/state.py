@@ -1,9 +1,21 @@
 """Workflow state management."""
 
-from typing import Annotated, Any, Optional, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
+
+
+def _merge_dicts(left: dict[str, Any] | None, right: dict[str, Any] | None) -> dict[str, Any]:
+    """Reducer that merges dictionaries (for concurrent updates)."""
+    left = left or {}
+    right = right or {}
+    return {**left, **right}
+
+
+def _take_last(left: Any, right: Any) -> Any:
+    """Reducer that takes the most recent value."""
+    return right if right is not None else left
 
 
 class WorkflowState(TypedDict, total=False):
@@ -19,23 +31,23 @@ class WorkflowState(TypedDict, total=False):
     # Message history (for agent nodes)
     messages: Annotated[list[BaseMessage], add_messages]
 
-    # Intermediate results from nodes
-    intermediate: dict[str, Any]
+    # Intermediate results from nodes (supports concurrent updates via merge)
+    intermediate: Annotated[dict[str, Any], _merge_dicts]
 
-    # Final output (set by the last node)
-    output: Any
+    # Final output (set by the last node, takes last value on concurrent update)
+    output: Annotated[Any, _take_last]
 
-    # Current node being executed (for tracking)
-    current_node: Optional[str]
+    # Current node being executed (takes last value on concurrent update)
+    current_node: Annotated[str | None, _take_last]
 
     # Error information if workflow fails
-    error: Optional[str]
+    error: Annotated[str | None, _take_last]
 
-    # Metadata about the execution
-    metadata: dict[str, Any]
+    # Metadata about the execution (merged on concurrent updates)
+    metadata: Annotated[dict[str, Any], _merge_dicts]
 
 
-def create_state_class(state_schema: Optional[dict] = None) -> type[TypedDict]:
+def create_state_class(state_schema: dict | None = None) -> type[TypedDict]:
     """Create a TypedDict class from a JSON Schema.
 
     Args:
@@ -48,9 +60,6 @@ def create_state_class(state_schema: Optional[dict] = None) -> type[TypedDict]:
     if not state_schema:
         return WorkflowState
 
-    # For now, we use the default WorkflowState
-    # A more sophisticated implementation could dynamically create
-    # TypedDict classes from JSON Schema
     return WorkflowState
 
 

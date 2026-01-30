@@ -1,7 +1,7 @@
 """Parallel node implementation for fan-out/fan-in patterns."""
 
-import operator
-from typing import Annotated, Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from langgraph.types import Send
 
@@ -32,9 +32,14 @@ def create_parallel_node(
         """
         sends = []
 
-        if fan_out_key and fan_out_key in state:
+        if fan_out_key:
             # Dynamic fan-out: create one Send per item
-            items = state[fan_out_key]
+            # Check top-level state first, then inside input
+            items = state.get(fan_out_key)
+            if items is None:
+                input_data = state.get("input", {})
+                if isinstance(input_data, dict):
+                    items = input_data.get(fan_out_key)
             if isinstance(items, list):
                 for i, item in enumerate(items):
                     for target_node in parallel_nodes:
@@ -43,6 +48,11 @@ def create_parallel_node(
                             **state,
                             "parallel_item": item,
                             "parallel_index": i,
+                            "metadata": {
+                                **state.get("metadata", {}),
+                                "parallel_item": item,
+                                "parallel_index": i,
+                            },
                         }
                         sends.append(Send(target_node, item_state))
         else:

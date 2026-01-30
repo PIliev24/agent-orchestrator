@@ -1,8 +1,7 @@
 """Common Pydantic schemas shared across modules."""
 
 from datetime import datetime
-from typing import Generic, Optional, TypeVar
-from uuid import UUID
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -74,5 +73,5 @@ class ErrorResponse(BaseModel):
 
     error: str
     message: str
-    details: Optional[dict] = None
-    request_id: Optional[str] = None
+    details: dict | None = None
+    request_id: str | None = None

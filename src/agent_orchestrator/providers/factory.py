@@ -1,13 +1,11 @@
 """Factory for creating AI providers."""
 
-from typing import Optional
-
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
 from agent_orchestrator.core.exceptions import ProviderError
-from agent_orchestrator.providers.base import BaseProvider, ProviderConfig
 from agent_orchestrator.providers.anthropic import AnthropicProvider
+from agent_orchestrator.providers.base import BaseProvider, ProviderConfig
 from agent_orchestrator.providers.google import GoogleProvider
 from agent_orchestrator.providers.openai import OpenAIProvider
 
@@ -57,8 +55,8 @@ class ProviderFactory:
     def create_model(
         cls,
         config: ProviderConfig | dict,
-        tools: Optional[list[BaseTool]] = None,
-        output_schema: Optional[dict] = None,
+        tools: list[BaseTool] | None = None,
+        output_schema: dict | None = None,
     ) -> BaseChatModel:
         """Create a chat model from configuration.
 

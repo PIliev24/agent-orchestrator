@@ -1,11 +1,11 @@
 """Base provider interface for AI providers."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 
 class ProviderConfig(BaseModel):
@@ -13,8 +13,8 @@ class ProviderConfig(BaseModel):
 
     provider: str
     model_name: str
-    max_tokens: Optional[int] = None
-    api_key: Optional[str] = None
+    max_tokens: int | None = None
+    api_key: str | None = None
     extra_kwargs: dict[str, Any] = {}
 
     @property

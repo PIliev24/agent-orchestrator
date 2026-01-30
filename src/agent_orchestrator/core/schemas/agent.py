@@ -1,6 +1,5 @@
 """Pydantic schemas for Agent API."""
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -24,7 +23,7 @@ class ModelConfig(BaseModel):
         description="Model name/identifier",
         examples=["gpt-4o", "claude-sonnet-4-20250514", "gemini-2.0-flash"],
     )
-    max_tokens: Optional[int] = Field(
+    max_tokens: int | None = Field(
         default=None,
         ge=1,
         description="Maximum tokens to generate",
@@ -41,7 +40,7 @@ class AgentCreate(BaseModel):
         description="Agent name",
         examples=["Question Generator"],
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         description="Agent description",
     )
@@ -55,7 +54,7 @@ class AgentCreate(BaseModel):
         ...,
         description="AI model configuration",
     )
-    output_schema: Optional[dict] = Field(
+    output_schema: dict | None = Field(
         default=None,
         description="JSON Schema for structured output",
     )
@@ -68,19 +67,19 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     """Schema for updating an agent."""
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         default=None,
         min_length=1,
         max_length=128,
     )
-    description: Optional[str] = None
-    instructions: Optional[str] = Field(
+    description: str | None = None
+    instructions: str | None = Field(
         default=None,
         min_length=1,
     )
-    llm_config: Optional[ModelConfig] = None
-    output_schema: Optional[dict] = None
-    tool_ids: Optional[list[UUID]] = None
+    llm_config: ModelConfig | None = None
+    output_schema: dict | None = None
+    tool_ids: list[UUID] | None = None
 
 
 class AgentResponse(BaseSchema, TimestampMixin):
@@ -88,10 +87,10 @@ class AgentResponse(BaseSchema, TimestampMixin):
 
     id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     instructions: str
     llm_config: dict  # ModelConfig stored as dict in DB
-    output_schema: Optional[dict]
+    output_schema: dict | None
     tool_ids: list[UUID] = Field(default_factory=list)
 
 

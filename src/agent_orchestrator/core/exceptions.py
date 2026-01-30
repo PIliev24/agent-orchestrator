@@ -1,13 +1,12 @@
 """Custom exception classes for the agent orchestrator."""
 
-from typing import Optional
 from uuid import UUID
 
 
 class AgentOrchestratorError(Exception):
     """Base exception for all agent orchestrator errors."""
 
-    def __init__(self, message: str, details: Optional[dict] = None):
+    def __init__(self, message: str, details: dict | None = None):
         super().__init__(message)
         self.message = message
         self.details = details or {}
@@ -18,7 +17,7 @@ class NotFoundError(AgentOrchestratorError):
 
     resource_type: str = "Resource"
 
-    def __init__(self, resource_id: UUID | str, message: Optional[str] = None):
+    def __init__(self, resource_id: UUID | str, message: str | None = None):
         self.resource_id = resource_id
         msg = message or f"{self.resource_type} with id '{resource_id}' not found"
         super().__init__(msg, {"resource_id": str(resource_id)})
@@ -48,10 +47,28 @@ class ExecutionNotFoundError(NotFoundError):
     resource_type = "Execution"
 
 
+class WorkflowNodeNotFoundError(NotFoundError):
+    """Raised when a workflow node is not found."""
+
+    resource_type = "WorkflowNode"
+
+
+class WorkflowEdgeNotFoundError(NotFoundError):
+    """Raised when a workflow edge is not found."""
+
+    resource_type = "WorkflowEdge"
+
+
+class ExecutionStepNotFoundError(NotFoundError):
+    """Raised when an execution step is not found."""
+
+    resource_type = "ExecutionStep"
+
+
 class ValidationError(AgentOrchestratorError):
     """Raised when validation fails."""
 
-    def __init__(self, message: str, field: Optional[str] = None, errors: Optional[list] = None):
+    def __init__(self, message: str, field: str | None = None, errors: list | None = None):
         details = {}
         if field:
             details["field"] = field
@@ -63,7 +80,7 @@ class ValidationError(AgentOrchestratorError):
 class ProviderError(AgentOrchestratorError):
     """Raised when an AI provider operation fails."""
 
-    def __init__(self, provider: str, message: str, original_error: Optional[Exception] = None):
+    def __init__(self, provider: str, message: str, original_error: Exception | None = None):
         self.provider = provider
         self.original_error = original_error
         details = {"provider": provider}
@@ -75,7 +92,7 @@ class ProviderError(AgentOrchestratorError):
 class WorkflowCompilationError(AgentOrchestratorError):
     """Raised when workflow compilation fails."""
 
-    def __init__(self, workflow_id: UUID | str, message: str, node_id: Optional[str] = None):
+    def __init__(self, workflow_id: UUID | str, message: str, node_id: str | None = None):
         self.workflow_id = workflow_id
         self.node_id = node_id
         details = {"workflow_id": str(workflow_id)}
@@ -91,8 +108,8 @@ class ExecutionError(AgentOrchestratorError):
         self,
         execution_id: UUID | str,
         message: str,
-        node_id: Optional[str] = None,
-        original_error: Optional[Exception] = None,
+        node_id: str | None = None,
+        original_error: Exception | None = None,
     ):
         self.execution_id = execution_id
         self.node_id = node_id

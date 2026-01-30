@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -37,9 +36,7 @@ class ToolService:
             ValidationError: If tool name already exists.
         """
         # Check for duplicate name
-        existing = await self._session.execute(
-            select(Tool).where(Tool.name == data.name)
-        )
+        existing = await self._session.execute(select(Tool).where(Tool.name == data.name))
         if existing.scalar_one_or_none():
             raise ValidationError(
                 f"Tool with name '{data.name}' already exists",
@@ -50,7 +47,7 @@ class ToolService:
             name=data.name,
             description=data.description,
             function_schema=data.function_schema,
-            implementation_ref=data.implementation_ref,
+            implementation_ref=f"builtin:{data.name}",
             config=data.config,
         )
         self._session.add(tool)
@@ -85,9 +82,7 @@ class ToolService:
         Raises:
             ToolNotFoundError: If tool doesn't exist.
         """
-        result = await self._session.execute(
-            select(Tool).where(Tool.name == name)
-        )
+        result = await self._session.execute(select(Tool).where(Tool.name == name))
         tool = result.scalar_one_or_none()
 
         if not tool:
@@ -99,7 +94,7 @@ class ToolService:
         self,
         page: int = 1,
         page_size: int = 20,
-        search: Optional[str] = None,
+        search: str | None = None,
     ) -> tuple[list[ToolResponse], int]:
         """List tools with pagination.
 
@@ -149,22 +144,19 @@ class ToolService:
 
         # Check for duplicate name if changing
         if data.name is not None and data.name != tool.name:
-            existing = await self._session.execute(
-                select(Tool).where(Tool.name == data.name)
-            )
+            existing = await self._session.execute(select(Tool).where(Tool.name == data.name))
             if existing.scalar_one_or_none():
                 raise ValidationError(
                     f"Tool with name '{data.name}' already exists",
                     field="name",
                 )
             tool.name = data.name
+            tool.implementation_ref = f"builtin:{data.name}"
 
         if data.description is not None:
             tool.description = data.description
         if data.function_schema is not None:
             tool.function_schema = data.function_schema
-        if data.implementation_ref is not None:
-            tool.implementation_ref = data.implementation_ref
         if data.config is not None:
             tool.config = data.config
 
@@ -215,7 +207,6 @@ class ToolService:
             name=tool.name,
             description=tool.description,
             function_schema=tool.function_schema,
-            implementation_ref=tool.implementation_ref,
             config=tool.config,
             created_at=tool.created_at,
             updated_at=tool.updated_at,

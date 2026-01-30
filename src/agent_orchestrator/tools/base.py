@@ -1,9 +1,10 @@
 """Base tool interface."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
-from langchain_core.tools import BaseTool as LangChainBaseTool, tool
+from langchain_core.tools import BaseTool as LangChainBaseTool
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
 
@@ -12,7 +13,7 @@ class ToolResult(BaseModel):
 
     success: bool
     output: Any
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class BaseTool(ABC):
@@ -54,15 +55,19 @@ class BaseTool(ABC):
         """
         tool_instance = self
 
-        @tool(name=self.name, description=self.description)
-        async def wrapper(**kwargs: Any) -> str:
+        async def _execute(**kwargs: Any) -> str:
             result = await tool_instance.execute(**kwargs)
             if result.success:
                 return str(result.output)
             else:
                 return f"Error: {result.error}"
 
-        return wrapper
+        return StructuredTool.from_function(
+            coroutine=_execute,
+            name=self.name,
+            description=self.description,
+            args_schema=self.get_input_schema(),
+        )
 
     def get_function_schema(self) -> dict:
         """Get the function schema for this tool.

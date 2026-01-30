@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -14,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from agent_orchestrator.core.exceptions import (
     ExecutionError,
     ExecutionNotFoundError,
+    ExecutionStepNotFoundError,
     WorkflowNotFoundError,
 )
 from agent_orchestrator.core.schemas.execution import (
@@ -97,7 +99,7 @@ class ExecutionService:
         try:
             # Mark as running
             execution.status = ExecutionStatus.RUNNING
-            execution.started_at = datetime.now(timezone.utc)
+            execution.started_at = datetime.now(UTC)
             await self._session.flush()
 
             # Compile and execute workflow
@@ -118,7 +120,7 @@ class ExecutionService:
 
             # Mark as completed
             execution.status = ExecutionStatus.COMPLETED
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(UTC)
             execution.output_data = {
                 "output": result.get("output"),
                 "intermediate": result.get("intermediate", {}),
@@ -128,7 +130,7 @@ class ExecutionService:
         except Exception as e:
             # Mark as failed
             execution.status = ExecutionStatus.FAILED
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(UTC)
             execution.error_message = str(e)
             await self._session.flush()
 
@@ -178,7 +180,7 @@ class ExecutionService:
         try:
             # Mark as running
             execution.status = ExecutionStatus.RUNNING
-            execution.started_at = datetime.now(timezone.utc)
+            execution.started_at = datetime.now(UTC)
             await self._session.flush()
 
             # Compile workflow
@@ -212,9 +214,11 @@ class ExecutionService:
                             execution_id=execution.id,
                             node_id=node_name,
                             status=ExecutionStatus.COMPLETED,
-                            output_data=serialized_output if isinstance(serialized_output, dict) else {"result": serialized_output},
-                            started_at=datetime.now(timezone.utc),
-                            completed_at=datetime.now(timezone.utc),
+                            output_data=serialized_output
+                            if isinstance(serialized_output, dict)
+                            else {"result": serialized_output},
+                            started_at=datetime.now(UTC),
+                            completed_at=datetime.now(UTC),
                         )
                         self._session.add(step)
 
@@ -223,7 +227,7 @@ class ExecutionService:
 
             # Mark as completed
             execution.status = ExecutionStatus.COMPLETED
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(UTC)
             execution.output_data = {
                 "output": final_state.values.get("output") if final_state else None,
             }
@@ -239,7 +243,7 @@ class ExecutionService:
 
         except Exception as e:
             execution.status = ExecutionStatus.FAILED
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(UTC)
             execution.error_message = str(e)
             await self._session.flush()
 
@@ -307,8 +311,8 @@ class ExecutionService:
         self,
         page: int = 1,
         page_size: int = 20,
-        workflow_id: Optional[UUID] = None,
-        status: Optional[ExecutionStatus] = None,
+        workflow_id: UUID | None = None,
+        status: ExecutionStatus | None = None,
     ) -> tuple[list[ExecutionResponse], int]:
         """List executions with pagination.
 
@@ -367,10 +371,94 @@ class ExecutionService:
             )
 
         execution.status = ExecutionStatus.CANCELLED
-        execution.completed_at = datetime.now(timezone.utc)
+        execution.completed_at = datetime.now(UTC)
         await self._session.flush()
 
         return self._to_response(execution)
+
+    async def delete(self, execution_id: UUID) -> None:
+        """Delete an execution."""
+        execution = await self._get_execution(execution_id)
+        await self._session.delete(execution)
+
+    async def resume(self, execution_id: UUID) -> ExecutionResponse:
+        """Resume a cancelled or failed execution."""
+        execution = await self._get_execution(execution_id)
+
+        if execution.status not in (ExecutionStatus.CANCELLED, ExecutionStatus.FAILED):
+            raise ExecutionError(
+                execution_id=execution_id,
+                message=f"Cannot resume execution with status {execution.status}",
+            )
+
+        # Re-execute using existing data
+        data = ExecutionCreate(
+            workflow_id=execution.workflow_id,
+            input=execution.input_data or {},
+            thread_id=execution.thread_id,
+        )
+        return await self.execute(data)
+
+    async def restart(self, execution_id: UUID) -> ExecutionResponse:
+        """Restart an execution from scratch with a new thread."""
+        execution = await self._get_execution(execution_id)
+
+        data = ExecutionCreate(
+            workflow_id=execution.workflow_id,
+            input=execution.input_data or {},
+        )
+        return await self.execute(data)
+
+    async def list_steps(
+        self, execution_id: UUID, page: int = 1, page_size: int = 20
+    ) -> tuple[list[ExecutionStepResponse], int]:
+        """List steps for an execution."""
+        await self._get_execution(execution_id)
+
+        count_query = (
+            select(func.count())
+            .select_from(ExecutionStep)
+            .where(ExecutionStep.execution_id == execution_id)
+        )
+        total = await self._session.scalar(count_query)
+
+        offset = (page - 1) * page_size
+        query = (
+            select(ExecutionStep)
+            .where(ExecutionStep.execution_id == execution_id)
+            .order_by(ExecutionStep.started_at)
+            .offset(offset)
+            .limit(page_size)
+        )
+        result = await self._session.execute(query)
+        steps = result.scalars().all()
+
+        return [self._step_to_response(s) for s in steps], total or 0
+
+    async def get_step(self, execution_id: UUID, step_id: UUID) -> ExecutionStepResponse:
+        """Get a single execution step."""
+        query = select(ExecutionStep).where(
+            ExecutionStep.id == step_id,
+            ExecutionStep.execution_id == execution_id,
+        )
+        result = await self._session.execute(query)
+        step = result.scalar_one_or_none()
+        if not step:
+            raise ExecutionStepNotFoundError(step_id)
+        return self._step_to_response(step)
+
+    def _step_to_response(self, step: ExecutionStep) -> ExecutionStepResponse:
+        """Convert ExecutionStep model to response schema."""
+        return ExecutionStepResponse(
+            id=step.id,
+            node_id=step.node_id,
+            status=step.status,
+            input_data=step.input_data,
+            output_data=step.output_data,
+            error_message=step.error_message,
+            started_at=step.started_at,
+            completed_at=step.completed_at,
+        )
 
     async def _get_execution(self, execution_id: UUID) -> Execution:
         """Get an execution by ID or raise error.
