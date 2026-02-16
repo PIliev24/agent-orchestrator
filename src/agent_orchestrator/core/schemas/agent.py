@@ -21,7 +21,7 @@ class ModelConfig(BaseModel):
     model_name: str = Field(
         ...,
         description="Model name/identifier",
-        examples=["gpt-4o", "claude-sonnet-4-20250514", "gemini-2.0-flash"],
+        examples=["gpt-5.2", "claude-sonnet-4-20250514", "gemini-2.0-flash"],
     )
     max_tokens: int | None = Field(
         default=None,

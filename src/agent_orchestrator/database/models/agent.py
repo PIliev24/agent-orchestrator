@@ -25,7 +25,7 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     instructions: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Model configuration as JSON
-    # {"provider": "openai", "model_name": "gpt-4o", "temperature": 0.7, ...}
+    # {"provider": "openai", "model_name": "gpt-5.2", "temperature": 0.7, ...}
     llm_config: Mapped[dict] = mapped_column(JSON, nullable=False)
 
     # Optional output schema for structured output

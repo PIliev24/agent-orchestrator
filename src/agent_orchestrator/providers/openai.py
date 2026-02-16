@@ -8,7 +8,7 @@ from agent_orchestrator.providers.base import BaseProvider, ProviderConfig
 
 
 class OpenAIProvider(BaseProvider):
-    """Provider for OpenAI models (GPT-4, GPT-4o, etc.)."""
+    """Provider for OpenAI models (GPT-5.2, etc.)."""
 
     provider_name = "openai"
 
